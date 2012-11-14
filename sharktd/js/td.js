@@ -101,6 +101,8 @@ function Menu(canvas, msg) {
 		canvas.context.fillStyle = "black";
 		canvas.context.fillText(msg, 100, 100);		
 		canvas.context.font = "14px Arial";
+		canvas.context.fillText("code: Armen138", 100, canvas.height - 90);	
+		canvas.context.fillText("shark: OzDave", 100, canvas.height - 60);	
 		canvas.context.fillText("[javascript]", 100, canvas.height - 30);	
 		util.each(buttons, function(button) {
 			button.draw();
@@ -521,7 +523,7 @@ function Game(canvas, grid) {
 	};
 
 	this.run = function() {
-		canvas.context.fillStyle = "DBFBFF";
+		canvas.context.fillStyle = "#DBFBFF";
 		canvas.context.fillRect(0, 0, canvas.width, canvas.height);
 		grid.draw();
 		if(self.activeTile) {
@@ -551,7 +553,7 @@ function Game(canvas, grid) {
 		canvas.context.strokeText("❤ " + lives, 10, 30);
 		canvas.context.fillText("❤ " + lives, 10, 30);
 		canvas.context.strokeText(" $ " + credits, 10, 60);
-		canvas.context.fillText(" $ " + credits, 10, 60);		
+		canvas.context.fillText(" $ " + credits, 10, 60);
 		canvas.screen.drawImage(canvas.canvas, 0, 0);
 		if(lives < 0) {
 			self.fire("gameover");
