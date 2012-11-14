@@ -14,6 +14,116 @@ var util = {
 		}
 	}
 };
+
+function State() {
+	var currentState = null;
+	this.set = function(state) {
+		if(currentState) {
+			currentState.clear();
+		}	
+		state.init();
+		currentState = state;
+	};
+	this.update = function() {
+		if(currentState) {
+			currentState.run();	
+		}		
+	};
+	this.mouseClick = function(position) {
+		if(currentState) {
+			currentState.mouseClick(position);
+		}
+	};
+	this.mouseMove = function(position) {
+		if(currentState) {
+			currentState.mouseMove(position);
+		}
+	}
+};
+
+function Button(canvas, text, position, callback) {
+	this.width = 100;
+	this.height = 30;
+	this.isInside = function(p) {
+		return (p.X > position.X && p.Y > position.Y && p.X < position.X + this.width && p.Y < position.Y + this.height);
+	};
+	this.click = function(p) {
+		if(this.isInside(p)){
+			callback();
+		}
+	};
+	this.draw = function() {
+		canvas.context.save();
+		canvas.context.translate(position.X, position.Y);
+		canvas.context.fillStyle = "rgba(0, 99, 0, 1.0)";
+		canvas.context.fillRect(0, 0, this.width, this.height);
+		canvas.context.fillStyle = "black";
+		canvas.context.textBaseline = "hanging";
+		canvas.context.fillText(text, 4, 4);
+		canvas.context.restore();
+	};	
+
+}
+function Menu(canvas, msg) {
+	var buttons = [],
+		events = {},
+		self = this;
+	this.init = function() {
+		buttons.push(
+			new Button(
+				canvas, 
+				"play", 
+				{ X: 100, Y: 140 },
+				function() {
+					self.fire("play");
+				})
+			);
+	};
+	this.clear = function() {
+		buttons = [];	
+	};
+	this.run = function() {
+		this.draw();
+		canvas.screen.drawImage(canvas.canvas, 0, 0);
+	};
+	this.mouseClick = function(position) {
+		util.each(buttons, function(button) {
+			button.click(position);
+		});		
+	};
+	this.mouseMove = function() {
+
+	};
+	this.draw = function() {
+		canvas.context.fillStyle = "grey";
+		canvas.context.fillRect(0, 0, canvas.width, canvas.height);
+		canvas.context.font = "33px Arial";
+		canvas.context.fillStyle = "black";
+		canvas.context.fillText(msg, 100, 100);		
+		canvas.context.font = "14px Arial";
+		canvas.context.fillText("[javascript]", 100, canvas.height - 30);	
+		util.each(buttons, function(button) {
+			button.draw();
+		});
+	};
+	this.clearEvents = function() {
+		events = {};
+	};
+
+	this.on = function(evt, cb) {
+		if(!events[evt]) {
+			events[evt] = [];
+		}
+		events[evt].push(cb);
+	};
+	this.fire = function(evt) {
+		if(!events[evt]) return;
+		for(var i = 0; i < events[evt].length; i++) {
+			events[evt][i]();
+		}
+	};
+}
+
 function PathFinder(grid) {
 	function equal(v, o) {
 		return v.X === o.X && v.Y === o.Y
@@ -135,7 +245,11 @@ function Creeper(canvas, grid, hp) {
 	var self = this,
 		lastUpdate = (new Date()).getTime(),
 		pathFinder = new PathFinder(grid),
-		path = pathFinder.find(settings.entry, settings.exit);
+		path = pathFinder.find(settings.entry, settings.exit),
+		angle = 0,
+		img = new Image();
+
+	img.src = "images/sharkicon.png";
 
 	this.position = grid.position(settings.entry);
 
@@ -148,7 +262,7 @@ function Creeper(canvas, grid, hp) {
 
 	this.update = function() {
 		var now = (new Date()).getTime(),
-			diff = now - lastUpdate;
+			diff = now - lastUpdate;			
 		/* move creeper along path */
 		if(diff > 500 && path.length > 0) {
 			this.tilePosition = path.shift();
@@ -157,6 +271,7 @@ function Creeper(canvas, grid, hp) {
 			if(path.length > 0 && !grid.map[path[0].X][path[0].Y]) {
 				path = pathFinder.find(this.tilePosition, settings.exit);	
 			}
+			angle = Math.atan2((path[0].X - this.tilePosition.X), (this.tilePosition.Y - path[0].Y));
 		} else {
 			if(path.length > 0) {
 				var from = grid.position(this.tilePosition),
@@ -179,8 +294,11 @@ function Creeper(canvas, grid, hp) {
 	this.draw = function() {
 		canvas.context.save();
 		canvas.context.translate(self.position.X + settings.tileSize / 2, self.position.Y + settings.tileSize /2);
-		canvas.context.fillStyle = "red";
-		canvas.context.fillRect(-8, -8, 16, 16);
+		/*canvas.context.fillStyle = "red";
+		canvas.context.fillRect(-8, -8, 16, 16);*/
+		canvas.context.rotate(angle);
+		canvas.context.scale(1.0 + (hp / 500), 1.0 + (hp / 500));
+		canvas.context.drawImage(img, -12, -12);
 		canvas.context.restore();		
 	}
 }
@@ -208,6 +326,7 @@ function Tower(canvas, grid, position, creepers) {
 		canvas.context.rotate(angle);
 		canvas.context.fillStyle = "green";
 		canvas.context.fillRect(-8, -8, 16, 16);
+		canvas.context.fillRect(-2, -14, 4, 16);
 		canvas.context.restore();
 		util.each(projectiles, function(projectile) {
 			projectile.draw();
@@ -303,13 +422,16 @@ function Grid(canvas) {
 		return {X: tile.X * settings.tileSize, Y: tile.Y * settings.tileSize};
 	};
 
-	this.map = [];
-	for(y = 0; y < settings.gridSize; y ++) {
-		this.map[y] = [];
-		for(x = 0; x < settings.gridSize; x++) {
-			this.map[y][x] = true; //default - passable.
-		}
-	}
+	this.clear = function() {
+		this.map = [];
+		for(y = 0; y < settings.gridSize; y ++) {
+			this.map[y] = [];
+			for(x = 0; x < settings.gridSize; x++) {
+				this.map[y][x] = true; //default - passable.
+			}
+		}		
+	};
+	this.clear();
 }
 
 function Faucet() {
@@ -327,6 +449,17 @@ function Faucet() {
 				}
 			}
 		};
+
+	this.reset = function() {
+		wave = 0;
+		lastWave = 0;
+		lastCreep = 0;
+		creepCount = 0;
+	};
+
+	this.clearEvents = function() {
+		events = {};
+	};
 
 	this.on = function(evt, cb) {
 		if(!events[evt]) {
@@ -357,14 +490,27 @@ function Game(canvas, grid) {
 		towers = [],
 		creepers = [],
 		faucet = new Faucet(),
-		credits = 200;
+		credits = 200,
+		events = {};
 
-	faucet.on("wave", function(wave) {
-		console.log("wave: " + wave);
-	});
-	faucet.on("creeper", function(hp) {
-		creepers.push(new Creeper(canvas, grid, hp));
-	});
+	this.init = function() {
+		lives = 20;
+		towers = [];
+		creepers = [];		
+		credits = 200;
+		faucet.reset();
+		faucet.on("wave", function(wave) {
+			console.log("wave: " + wave);
+		});
+		faucet.on("creeper", function(hp) {
+			creepers.push(new Creeper(canvas, grid, hp));
+		});		
+	}
+
+	this.clear = function() {
+		faucet.clearEvents();
+		grid.clear();
+	}
 
 	this.each = function(set, action) {
 		for(var i = set.length - 1; i >= 0; --i) {
@@ -375,7 +521,7 @@ function Game(canvas, grid) {
 	};
 
 	this.run = function() {
-		canvas.context.fillStyle = "white";
+		canvas.context.fillStyle = "DBFBFF";
 		canvas.context.fillRect(0, 0, canvas.width, canvas.height);
 		grid.draw();
 		if(self.activeTile) {
@@ -407,6 +553,9 @@ function Game(canvas, grid) {
 		canvas.context.strokeText(" $ " + credits, 10, 60);
 		canvas.context.fillText(" $ " + credits, 10, 60);		
 		canvas.screen.drawImage(canvas.canvas, 0, 0);
+		if(lives < 0) {
+			self.fire("gameover");
+		}
 	};
 
 	this.mouseMove = function(pos) {
@@ -444,6 +593,22 @@ function Game(canvas, grid) {
 		}		
 		canvas.context.fillRect(tile.X * settings.tileSize, tile.Y * settings.tileSize, settings.tileSize, settings.tileSize);
 	};
+	this.clearEvents = function() {
+		events = {};
+	};
+
+	this.on = function(evt, cb) {
+		if(!events[evt]) {
+			events[evt] = [];
+		}
+		events[evt].push(cb);
+	};
+	this.fire = function(evt) {
+		if(!events[evt]) return;
+		for(var i = 0; i < events[evt].length; i++) {
+			events[evt][i]();
+		}
+	};	
 } 
 
 window.addEventListener("load", function(){
@@ -453,14 +618,32 @@ window.addEventListener("load", function(){
 
 	var game = new Game(canvas, grid);
 
-	setInterval(game.run, 17);
+	var menu = new Menu(canvas, "Royal Shark Championship");
+
+	var gameover = new Menu(canvas, "Game Over");
+
+	var state = new State();
+
+	function play() {
+		state.set(game);
+	}
+	menu.on("play", play);
+	gameover.on("play", play);
+
+	game.on("gameover", function() {
+		state.set(gameover);
+	});
+
+	setInterval(state.update, 17);
+
+	state.set(menu);
 
 	canvas.addEventListener("mousemove", function(ev) {
 		var mousePosition = {X: ev.clientX - canvas.position.X, Y: ev.clientY - canvas.position.Y};
-		game.mouseMove(mousePosition);		
+		state.mouseMove(mousePosition);		
 	});
 	canvas.addEventListener("click", function(ev) {
 		var mousePosition = {X: ev.clientX - canvas.position.X, Y: ev.clientY - canvas.position.Y};
-		game.mouseClick(mousePosition);
+		state.mouseClick(mousePosition);
 	});
 });
